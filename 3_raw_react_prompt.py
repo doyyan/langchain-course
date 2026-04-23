@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import ollama
+from openai import OpenAI
 from langsmith import traceable
 
 MAX_ITERATIONS = 10
-MODEL = "qwen3:1.7b"
+MODEL =  "gpt-4o-mini"
+
+# Initialize OpenAI client
+client = OpenAI()
 
 
 # --- Tools (LangChain @tool decorator) ---
@@ -84,12 +87,17 @@ Thought:"""
 
 
 
-# CHANGE 4: Drop tools= from ollama.chat(). The LLM has no idea it's an agent —
+# CHANGE 4: Use OpenAI API instead of Ollama. The LLM has no idea it's an agent —
 # all agency comes from the prompt above and our regex parsing below.
 
-@traceable(name="Ollama Chat", run_type="llm")
-def ollama_chat_traced(model, messages, options):
-    return ollama.chat(model=model, messages=messages, options=options)
+@traceable(name="OpenAI Chat", run_type="llm")
+def openai_chat_traced(model, messages, options):
+    return client.chat.completions.create(
+        model=model,
+        messages=messages,
+        stop=options.get("stop", None),
+        temperature=options.get("temperature", 0)
+    )
 
 
 
@@ -98,7 +106,7 @@ def ollama_chat_traced(model, messages, options):
 # --- Agent Loop ---
 
 
-@traceable(name="Ollama Agent Loop")
+@traceable(name="OpenAI Agent Loop")
 def run_agent(question: str):
     print(f"Question: {question}")
     print("=" * 60)
@@ -114,12 +122,12 @@ def run_agent(question: str):
 
         # Stop token prevents the LLM from generating its own Observation —
         # we inject the real tool result instead.
-        response = ollama_chat_traced(
+        response = openai_chat_traced(
             model=MODEL,
             messages=[{"role": "user", "content": full_prompt}],
             options={"stop": ["\nObservation"], "temperature": 0},
         )
-        output = response.message.content
+        output = response.choices[0].message.content
         print(f"LLM Output:\n{output}")
 
         print(f"  [Parsing] Looking for Final Answer in LLM output...")
@@ -172,6 +180,6 @@ def run_agent(question: str):
 
 
 if __name__ == "__main__":
-    print("Hello LangChain Agent (.bind_tools)!")
+    print("Hello Raw React Agent with OpenAI!")
     print()
     result = run_agent("What is the price of a laptop after applying a gold discount?")

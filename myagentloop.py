@@ -1,18 +1,14 @@
 from dotenv import load_dotenv
+from langsmith import traceable
 
 load_dotenv()
 
 from langchain.chat_models import init_chat_model
 from langchain.tools import tool
 from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
-from langsmith import traceable
 
 MAX_ITERATIONS = 10
-MODEL = "qwen3:1.7b"
-
-
-# --- Tools (LangChain @tool decorator) ---
-
+MODEL = "gpt-4o-mini"
 
 @tool
 def get_product_price(product: str) -> float:
@@ -20,7 +16,6 @@ def get_product_price(product: str) -> float:
     print(f"    >> Executing get_product_price(product='{product}')")
     prices = {"laptop": 1299.99, "headphones": 149.95, "keyboard": 89.50}
     return prices.get(product, 0)
-
 
 @tool
 def apply_discount(price: float, discount_tier: str) -> float:
@@ -31,37 +26,25 @@ def apply_discount(price: float, discount_tier: str) -> float:
     discount = discount_percentages.get(discount_tier, 0)
     return round(price * (1 - discount / 100), 2)
 
-
-# --- Agent Loop ---
-
-
 @traceable(name="LangChain Agent Loop")
 def run_agent(question: str):
     tools = [get_product_price, apply_discount]
     tools_dict = {t.name: t for t in tools}
-
-    llm = init_chat_model(f"ollama:{MODEL}", temperature=0)
+    llm = init_chat_model(MODEL, temperature=0)
     llm_with_tools = llm.bind_tools(tools)
-
     print(f"Question: {question}")
     print("=" * 60)
 
     messages = [
         SystemMessage(
             content=(
-                "You are a helpful shopping assistant. "
-                "You have access to a product catalog tool "
-                "and a discount tool.\n\n"
-                "STRICT RULES — you must follow these exactly:\n"
-                "1. NEVER guess or assume any product price. "
-                "You MUST call get_product_price first to get the real price.\n"
-                "2. Only call apply_discount AFTER you have received "
-                "a price from get_product_price. Pass the exact price "
-                "returned by get_product_price — do NOT pass a made-up number.\n"
-                "3. NEVER calculate discounts yourself using math. "
-                "Always use the apply_discount tool.\n"
-                "4. If the user does not specify a discount tier, "
-                "ask them which tier to use — do NOT assume one."
+                "You are a shopping assistant with two tools:\n"
+                "1. get_product_price(product: str) - Get the price of a product\n"
+                "2. apply_discount(price: float, discount_tier: str) - Apply discount to a price\n\n"
+                "IMPORTANT SEQUENCE:\n"
+                "Step 1: ALWAYS call get_product_price FIRST to get the actual price\n"
+                "Step 2: THEN call apply_discount with the price you received\n\n"
+                "NEVER call apply_discount without first getting the real price from get_product_price."
             )
         ),
         HumanMessage(content=question),
@@ -69,11 +52,10 @@ def run_agent(question: str):
 
     for iteration in range(1, MAX_ITERATIONS + 1):
         print(f"\n--- Iteration {iteration} ---")
+        print("About to call LLM...")
 
-        print(
-            "About to call LLM...")  # ADD THIS
         ai_message = llm_with_tools.invoke(messages)
-        print("LLM responded!")  # ADD THIS
+        print("LLM responded successfully!")
 
         tool_calls = ai_message.tool_calls
 
@@ -105,6 +87,8 @@ def run_agent(question: str):
 
     print("ERROR: Max iterations reached without a final answer")
     return None
+
+
 
 
 if __name__ == "__main__":
