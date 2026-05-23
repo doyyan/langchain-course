@@ -2,11 +2,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-import ollama
+from openai import OpenAI
 from langsmith import traceable
 
 MAX_ITERATIONS = 10
-MODEL = "qwen3:1.7b"
+MODEL = "gpt-4o-mini"
 
 
 # --- Tools (LangChain @tool decorator) ---
@@ -87,13 +87,19 @@ tools_for_llm = [
 #       """
 # We keep the manual JSON version here so you can see what @tool hides from you.
 
-# --- Helper: traced Ollama call ---
+# --- Helper: traced OpenAI call ---
 # Difference 3: Without LangChain, we must manually trace LLM calls for LangSmith.
 
+client = OpenAI()
 
-@traceable(name="Ollama Chat", run_type="llm")
-def ollama_chat_traced(messages):
-    return ollama.chat(model=MODEL, tools=tools_for_llm, messages=messages)
+@traceable(name="OpenAI Chat", run_type="llm")
+def openai_chat_traced(messages):
+    return client.chat.completions.create(
+        model=MODEL,
+        tools=tools_for_llm,
+        messages=messages,
+        temperature=0
+    )
 
 # --- Agent Loop ---
 
@@ -135,9 +141,9 @@ def run_agent(question: str):
     for iteration in range(1, MAX_ITERATIONS + 1):
         print(f"\n--- Iteration {iteration} ---")
 
-        # Difference 5: ollama.chat() directly instead of llm_with_tools.invoke()
-        response = ollama_chat_traced(messages=messages)
-        ai_message = response.message
+        # Difference 5: OpenAI API directly instead of llm_with_tools.invoke()
+        response = openai_chat_traced(messages=messages)
+        ai_message = response.choices[0].message
 
         tool_calls = ai_message.tool_calls
 

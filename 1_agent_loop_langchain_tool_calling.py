@@ -8,7 +8,7 @@ from langchain_core.messages import HumanMessage, SystemMessage, ToolMessage
 from langsmith import traceable
 
 MAX_ITERATIONS = 10
-MODEL = "qwen3:1.7b"
+MODEL = "gpt-4o-mini"
 
 
 # --- Tools (LangChain @tool decorator) ---
@@ -16,7 +16,10 @@ MODEL = "qwen3:1.7b"
 
 @tool
 def get_product_price(product: str) -> float:
-    """Look up the price of a product in the catalog."""
+    """Look up the price of a product in the catalog.
+
+    Available products: laptop, headphones, keyboard
+    ALWAYS try this tool first before asking for clarification."""
     print(f"    >> Executing get_product_price(product='{product}')")
     prices = {"laptop": 1299.99, "headphones": 149.95, "keyboard": 89.50}
     return prices.get(product, 0)
@@ -40,7 +43,7 @@ def run_agent(question: str):
     tools = [get_product_price, apply_discount]
     tools_dict = {t.name: t for t in tools}
 
-    llm = init_chat_model(f"ollama:{MODEL}", temperature=0)
+    llm = init_chat_model(MODEL, temperature=0)  # Remove ollama: prefix for OpenAI
     llm_with_tools = llm.bind_tools(tools)
 
     print(f"Question: {question}")
@@ -55,6 +58,8 @@ def run_agent(question: str):
                 "STRICT RULES — you must follow these exactly:\n"
                 "1. NEVER guess or assume any product price. "
                 "You MUST call get_product_price first to get the real price.\n"
+                "2. If a user mentions 'laptop', 'headphones', or 'keyboard', "
+                "IMMEDIATELY call get_product_price with that product name.\n"
                 "2. Only call apply_discount AFTER you have received "
                 "a price from get_product_price. Pass the exact price "
                 "returned by get_product_price — do NOT pass a made-up number.\n"

@@ -6,7 +6,7 @@ load_dotenv()
 
 from langsmith import traceable
 
-import ollama
+from openai import OpenAI
 
 MAX_ITERATIONS = 10
 MODEL = "gpt-4o-mini"
@@ -73,6 +73,13 @@ Begin!
 Question: {{question}}
 Thought:"""
 
-@traceable(name="Ollama Chat", run_type="llm")
-def ollama_chat_traced(model, messages, options):
-    return ollama.chat(model=model, messages=messages, options=options)
+client = OpenAI()
+
+@traceable(name="OpenAI Chat", run_type="llm")
+def openai_chat_traced(model, messages):
+    response = client.chat.completions.create(
+        model=model,
+        messages=messages,
+        temperature=0
+    )
+    return {"message": {"content": response.choices[0].message.content}}
